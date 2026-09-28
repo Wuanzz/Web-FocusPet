@@ -164,6 +164,7 @@
 
     let wakeLock = null;
     let distractTimeout = null;
+    let hideTimestamp = 0; // Mốc thời gian khi bị ẩn màn hình
 
     // 1. KÍCH HOẠT GIỮ SÁNG MÀN HÌNH (SCREEN WAKE LOCK)
     async function requestWakeLock() {
@@ -320,24 +321,34 @@
       } catch (e) {}
     }, 1500);
 
-    // XỬ LÝ SỰ KIỆN TẮT MÀN HÌNH VS THOÁT APP
+    // XỬ LÝ CHÍNH XÁC LỖI TẮT MÀN HÌNH MỞ LẠI BỊ PHẠT
     document.addEventListener("visibilitychange", () => {
       if (!isDeviceAuthorized) return;
 
       if (document.hidden) {
-        // Hẹn giờ trì hoãn 2.5 giây để xác nhận xem đây là thoát app hay tắt màn hình
+        hideTimestamp = Date.now();
         clearTimeout(distractTimeout);
+
         distractTimeout = setTimeout(() => {
-          sendSignal(true);
-          statusTitle.innerText = "⚠️ XAO NHÃNG!";
-          statusTitle.style.color = "#e74c3c";
-          statusDesc.innerText = "Bạn đã rời khỏi Trạm Sạc! Pet trên máy tính đang bị ảnh hưởng!";
-          statusBadge.innerText = "CẢNH BÁO";
-          statusBadge.className = "status-badge warning";
-        }, 2500);
+          // Kiểm tra xem đoạn code này có bị "rã đông chạy đền" sau khi mở màn hình không
+          const timeElapsed = Date.now() - hideTimestamp;
+          
+          // Nếu chạy chuẩn tục không ngắt quãng (dưới 3500ms) -> Thực sự xao nhãng thoát App
+          if (timeElapsed < 3500) {
+            sendSignal(true);
+            statusTitle.innerText = "⚠️ XAO NHÃNG!";
+            statusTitle.style.color = "#e74c3c";
+            statusDesc.innerText = "Bạn đã rời khỏi Trạm Sạc! Pet trên máy tính đang bị ảnh hưởng!";
+            statusBadge.innerText = "CẢNH BÁO";
+            statusBadge.className = "status-badge warning";
+          }
+        }, 2000);
       } else {
-        // Nếu quay lại trước khi hết 2.5s -> Hủy bỏ lệnh phạt ngay lập tức
+        // KHI MỞ MÀN HÌNH NHẬP MẬT KHẨU LẠI
         clearTimeout(distractTimeout);
+        hideTimestamp = 0;
+
+        // Báo an toàn ngay lập tức cho Extension
         sendSignal(false);
         statusDesc.innerText = "Màn hình sẽ giữ sáng. Giữ nguyên màn hình này để cùng Pet tập trung nhé!";
         requestWakeLock();
