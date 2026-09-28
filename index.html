@@ -7,8 +7,8 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: Arial, sans-serif;
-      background: #1e272e;
+      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: #111827;
       color: #ffffff;
       height: 100vh;
       display: flex;
@@ -17,66 +17,171 @@
       align-items: center;
       text-align: center;
       padding: 20px;
+      overflow: hidden;
     }
-    .card {
-      background: rgba(255, 255, 255, 0.08);
-      backdrop-filter: blur(12px);
-      border-radius: 24px;
+
+    .station-card {
+      background: rgba(31, 41, 55, 0.7);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-radius: 28px;
       padding: 30px 20px;
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.1);
       width: 100%;
       max-width: 340px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+    }
+
+    /* ĐỒNG HỒ ĐẾM NGƯỢC PHÍA TRÊN */
+    .timer-header {
+      font-size: 38px;
+      font-weight: 800;
+      color: #f1c40f;
+      letter-spacing: 1.5px;
+      font-family: 'Courier New', Courier, monospace;
+      margin-bottom: 15px;
+      text-shadow: 0 2px 10px rgba(241, 196, 15, 0.3);
+    }
+
+    /* KHUNG VÒNG TRÒN TRUNG TÂM */
+    .circle-container {
+      position: relative;
+      width: 200px;
+      height: 200px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .progress-ring {
+      transform: rotate(-90deg);
+      transform-origin: 50% 50%;
+    }
+
+    .progress-ring__circle-bg {
+      stroke: rgba(255, 255, 255, 0.08);
+    }
+
+    .progress-ring__circle {
+      stroke: #2ecc71;
+      stroke-dasharray: 565.48; /* 2 * PI * r (r=90) */
+      stroke-dashoffset: 0;
+      transition: stroke-dashoffset 0.5s linear, stroke 0.3s ease;
+      stroke-linecap: round;
+    }
+
+    /* PET ANIMATION Ở GIỮA VÒNG TRÒN */
+    .pet-wrapper {
+      position: absolute;
+      width: 120px;
+      height: 120px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .pet-avatar {
+      width: 100px;
+      height: 100px;
+      object-fit: contain;
+      filter: drop-shadow(0 8px 16px rgba(0,0,0,0.4));
       transition: all 0.3s ease;
     }
-    .pet-icon { font-size: 65px; margin-bottom: 10px; }
-    .timer { font-size: 38px; font-weight: bold; color: #f1c40f; margin: 8px 0; font-family: monospace; }
-    h1 { font-size: 18px; margin-bottom: 6px; color: #2ecc71; transition: color 0.3s ease; }
-    p { font-size: 12px; color: #dcdde1; line-height: 1.5; margin-bottom: 20px; }
+
+    /* TIÊU ĐỀ VÀ BADGE TRẠNG THÁI PHÍA DƯỚI */
+    .status-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: #2ecc71;
+      transition: color 0.3s ease;
+    }
+
+    .status-desc {
+      font-size: 12px;
+      color: #9ca3af;
+      line-height: 1.4;
+      margin-bottom: 18px;
+      padding: 0 10px;
+    }
+
     .status-badge {
       display: inline-block;
-      padding: 6px 16px;
+      padding: 8px 20px;
       border-radius: 20px;
-      font-weight: bold;
+      font-weight: 700;
       font-size: 12px;
       background: #2ecc71;
-      color: #fff;
-      transition: background 0.3s ease;
+      color: #ffffff;
+      letter-spacing: 0.5px;
+      box-shadow: 0 4px 12px rgba(46, 204, 113, 0.3);
+      transition: all 0.3s ease;
     }
-    .status-badge.warning { background: #e74c3c; }
-    .status-badge.paused { background: #e67e22; }
-    .status-badge.break { background: #3498db; }
+
+    /* ĐỔI MÀU TRẠNG THÁI */
+    .status-badge.warning { background: #e74c3c; box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3); }
+    .status-badge.paused { background: #e67e22; box-shadow: 0 4px 12px rgba(230, 126, 34, 0.3); }
+    .status-badge.break { background: #3498db; box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3); }
   </style>
 </head>
 <body>
-  <div class="card">
-    <div class="pet-icon" id="petIcon">🐧</div>
-    <div class="timer" id="timerDisplay">25:00</div>
-    <h1 id="statusTitle">Đang Trong Trạm Sạc</h1>
-    <p id="statusDesc">Hãy giữ nguyên màn hình này và đặt điện thoại xuống bàn để cùng Pet tập trung nhé!</p>
+
+  <div class="station-card">
+    <!-- 1. THỜI GIAN ĐẾM NGƯỢC PHÍA TRÊN -->
+    <div class="timer-header" id="timerDisplay">25:00</div>
+
+    <!-- 2. VÒNG TRÒN TIẾN TRÌNH VÀ PET GIF Ở GIỮA -->
+    <div class="circle-container">
+      <svg class="progress-ring" width="200" height="200">
+        <circle class="progress-ring__circle-bg" stroke-width="8" fill="transparent" r="90" cx="100" cy="100"/>
+        <circle class="progress-ring__circle" id="progressCircle" stroke-width="8" fill="transparent" r="90" cx="100" cy="100"/>
+      </svg>
+      <div class="pet-wrapper">
+        <img id="petImg" class="pet-avatar" src="" alt="FocusPet">
+      </div>
+    </div>
+
+    <!-- 3. TRẠNG THÁI PHÍA DƯỚI -->
+    <div class="status-title" id="statusTitle">Đang Trong Trạm Sạc</div>
+    <div class="status-desc" id="statusDesc">Đặt điện thoại xuống bàn để cùng Pet tập trung học bài nhé!</div>
     <div class="status-badge" id="statusBadge">ĐANG TẬP TRUNG</div>
   </div>
 
   <script>
     const FIREBASE_DB_URL = "https://web---focuspet-default-rtdb.asia-southeast1.firebasedatabase.app/";
     
-    // Lấy Session ID từ URL
     const urlParams = new URLSearchParams(window.location.search);
     const sessionId = urlParams.get('session');
 
+    const timerDisplay = document.getElementById('timerDisplay');
+    const progressCircle = document.getElementById('progressCircle');
+    const petImg = document.getElementById('petImg');
     const statusTitle = document.getElementById('statusTitle');
     const statusDesc = document.getElementById('statusDesc');
     const statusBadge = document.getElementById('statusBadge');
-    const petIcon = document.getElementById('petIcon');
-    const timerDisplay = document.getElementById('timerDisplay');
 
-    const petEmojis = {
-      penguin: '🐧',
-      cat: '🐱',
-      phoenix: '🐦'
-    };
+    const circleRadius = 90;
+    const circumference = 2 * Math.PI * circleRadius;
+    progressCircle.style.strokeDasharray = `${circumference} ${circumference}`;
 
-    // 1. GỬI TÍN HIỆU CẢNH BÁO LÊN FIREBASE KHI RỜI / QUAY LẠI TRẠM SẠC
+    function setProgress(percent, color = '#2ecc71') {
+      const offset = circumference - (percent / 100 * circumference);
+      progressCircle.style.strokeDashoffset = offset;
+      progressCircle.style.stroke = color;
+    }
+
+    function getPetStagePrefix(level = 1) {
+      if (level < 3) return 'egg';
+      if (level < 6) return 'baby';
+      return 'adult';
+    }
+
+    // 1. GỬI TÍN HIỆU CẢNH BÁO KHI RỜI/VÀO LẠI TRẠM SẠC
     async function sendSignal(isDistracted) {
       if (!sessionId) return;
       try {
@@ -91,10 +196,9 @@
       } catch (e) {}
     }
 
-    // Báo an toàn khi vừa tải trang
     sendSignal(false);
 
-    // 2. ĐỌC ĐỒNG BỘ TẤT CẢ TRẠNG THÁI TỪ EXTENSION VỀ MOBILE MỖI 1 GIÂY
+    // 2. LẤY TRẠNG THÁI VÀ CẬP NHẬT GIAO DIỆN REAL-TIME
     setInterval(async () => {
       if (!sessionId || document.hidden) return;
       try {
@@ -102,51 +206,63 @@
         const data = await res.json();
 
         if (data) {
-          // Đồng bộ đếm ngược Pomodoro
-          const mins = Math.floor((data.timeLeft || 0) / 60);
-          const secs = (data.timeLeft || 0) % 60;
+          // Cập nhật đồng hồ đếm ngược
+          const secondsLeft = data.timeLeft || 0;
+          const mins = Math.floor(secondsLeft / 60);
+          const secs = secondsLeft % 60;
           timerDisplay.innerText = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 
-          const defaultEmoji = petEmojis[data.petType] || '🐧';
+          // Cập nhật vòng tròn tiến trình (giả định tổng thời gian từ mốc còn lại)
+          const totalDuration = data.mode === 'BREAK' ? 300 : 1500; 
+          const progressPercent = Math.min(100, Math.max(0, (secondsLeft / totalDuration) * 100));
 
-          // Đồng bộ ĐỦ các trạng thái thực tế từ Extension
+          // Xác định đường dẫn ảnh GIF động của Pet
+          const petType = data.petType || 'penguin';
+          const level = data.level || 1;
+          const prefix = getPetStagePrefix(level);
+
+          // Cập nhật trạng thái & màu sắc
           if (!data.isRunning || data.petState === 'PAUSED') {
+            setProgress(progressPercent, '#e67e22');
+            petImg.src = `pet/${petType}/${prefix}-paused.gif`;
             statusBadge.innerText = "TẠM DỪNG";
             statusBadge.className = "status-badge paused";
-            statusTitle.innerText = "Tạm dừng tập trung";
+            statusTitle.innerText = "Tạm Dừng Tập Trung";
             statusTitle.style.color = "#e67e22";
-            petIcon.innerText = "😴";
           } else if (data.mode === 'BREAK' || data.petState === 'BREAK') {
+            setProgress(progressPercent, '#3498db');
+            petImg.src = `pet/${petType}/${prefix}-break.gif`;
             statusBadge.innerText = "GIỜ NGHỈ NGƠI";
             statusBadge.className = "status-badge break";
-            statusTitle.innerText = "Thư giãn thôi~";
+            statusTitle.innerText = "Thư Giãn Thôi~";
             statusTitle.style.color = "#3498db";
-            petIcon.innerText = "☕";
           } else if (data.petState === 'WARNING') {
+            setProgress(100, '#e74c3c');
+            petImg.src = `pet/${petType}/${prefix}-warning.gif`;
             statusBadge.innerText = "CẢNH BÁO XAO NHÃNG";
             statusBadge.className = "status-badge warning";
-            statusTitle.innerText = "Mau quay lại học bài!";
+            statusTitle.innerText = "Mau Quay Lại Học!";
             statusTitle.style.color = "#e74c3c";
-            petIcon.innerText = "⚠️";
           } else if (data.petState === 'DISTRACTED') {
+            setProgress(100, '#e74c3c');
+            petImg.src = `pet/${petType}/${prefix}-distracted.gif`;
             statusBadge.innerText = "BỊ TRỪ EXP!";
             statusBadge.className = "status-badge warning";
-            statusTitle.innerText = "Đã bị trừ điểm!";
+            statusTitle.innerText = "Đã Bị Trừ Điểm!";
             statusTitle.style.color = "#e74c3c";
-            petIcon.innerText = "😭";
           } else {
-            // Trạng thái FOCUS chuẩn
+            setProgress(progressPercent, '#2ecc71');
+            petImg.src = `pet/${petType}/${prefix}-focus.gif`;
             statusBadge.innerText = "ĐANG TẬP TRUNG";
             statusBadge.className = "status-badge";
             statusTitle.innerText = "Đang Trong Trạm Sạc";
             statusTitle.style.color = "#2ecc71";
-            petIcon.innerText = defaultEmoji;
           }
         }
       } catch (e) {}
     }, 1000);
 
-    // LẮNG NGHE SỰ KIỆN THOÁT ỨNG DỤNG / QUAY LẠI TRẠM SẠC
+    // XỬ LÝ SỰ KIỆN RỜI TRẠM SẠC
     document.addEventListener("visibilitychange", () => {
       if (document.hidden) {
         sendSignal(true);
@@ -155,14 +271,9 @@
         statusDesc.innerText = "Bạn đã rời khỏi Trạm Sạc! Pet trên máy tính đang bị ảnh hưởng!";
         statusBadge.innerText = "CẢNH BÁO";
         statusBadge.className = "status-badge warning";
-        petIcon.innerText = "😭";
       } else {
         sendSignal(false);
-        statusTitle.style.color = "#2ecc71";
-        statusTitle.innerText = "Đang Trong Trạm Sạc";
-        statusDesc.innerText = "Hãy giữ nguyên màn hình này và đặt điện thoại xuống bàn để cùng Pet tập trung nhé!";
-        statusBadge.innerText = "ĐANG TẬP TRUNG";
-        statusBadge.className = "status-badge";
+        statusDesc.innerText = "Đặt điện thoại xuống bàn để cùng Pet tập trung học bài nhé!";
       }
     });
   </script>
