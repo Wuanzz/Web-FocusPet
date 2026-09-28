@@ -141,7 +141,7 @@
     </div>
 
     <div class="status-title" id="statusTitle">Đang Trong Trạm Sạc</div>
-    <div class="status-desc" id="statusDesc">Màn hình sẽ luôn giữ sáng. Hãy đặt điện thoại xuống bàn để cùng Pet học tập nhé!</div>
+    <div class="status-desc" id="statusDesc">Màn hình sẽ giữ sáng. Giữ nguyên màn hình này để cùng Pet tập trung nhé!</div>
     <div class="status-badge" id="statusBadge">ĐANG TẬP TRUNG</div>
   </div>
 
@@ -163,6 +163,7 @@
     progressCircle.style.strokeDasharray = `${circumference} ${circumference}`;
 
     let wakeLock = null;
+    let distractTimeout = null;
 
     // 1. KÍCH HOẠT GIỮ SÁNG MÀN HÌNH (SCREEN WAKE LOCK)
     async function requestWakeLock() {
@@ -232,7 +233,6 @@
       setProgress(100, "#95a5a6");
     }
 
-    // GỬI TÍN HIỆU LÊN FIREBASE
     async function sendSignal(isDistracted) {
       if (!sessionId || !isDeviceAuthorized) return;
       try {
@@ -320,22 +320,26 @@
       } catch (e) {}
     }, 1500);
 
-    // XỬ LÝ SỰ KIỆN RỜI TRẠM SẠC (BẤM HOME, CHUYỂN APP, ĐỔI TAB)
+    // XỬ LÝ SỰ KIỆN TẮT MÀN HÌNH VS THOÁT APP
     document.addEventListener("visibilitychange", () => {
       if (!isDeviceAuthorized) return;
 
       if (document.hidden) {
-        // BẮT BỘC GỬI CẢNH BÁO XAO NHÃNG NGAY TẬP TỨC
-        sendSignal(true);
-        statusTitle.innerText = "⚠️ XAO NHÃNG!";
-        statusTitle.style.color = "#e74c3c";
-        statusDesc.innerText = "Bạn đã rời khỏi Trạm Sạc! Pet trên máy tính đang bị ảnh hưởng!";
-        statusBadge.innerText = "CẢNH BÁO";
-        statusBadge.className = "status-badge warning";
+        // Hẹn giờ trì hoãn 2.5 giây để xác nhận xem đây là thoát app hay tắt màn hình
+        clearTimeout(distractTimeout);
+        distractTimeout = setTimeout(() => {
+          sendSignal(true);
+          statusTitle.innerText = "⚠️ XAO NHÃNG!";
+          statusTitle.style.color = "#e74c3c";
+          statusDesc.innerText = "Bạn đã rời khỏi Trạm Sạc! Pet trên máy tính đang bị ảnh hưởng!";
+          statusBadge.innerText = "CẢNH BÁO";
+          statusBadge.className = "status-badge warning";
+        }, 2500);
       } else {
-        // QUAY LẠI TRẠM SẠC -> TRẢ VỀ AN TOÀN
+        // Nếu quay lại trước khi hết 2.5s -> Hủy bỏ lệnh phạt ngay lập tức
+        clearTimeout(distractTimeout);
         sendSignal(false);
-        statusDesc.innerText = "Màn hình sẽ luôn giữ sáng. Hãy đặt điện thoại xuống bàn để cùng Pet học tập nhé!";
+        statusDesc.innerText = "Màn hình sẽ giữ sáng. Giữ nguyên màn hình này để cùng Pet tập trung nhé!";
         requestWakeLock();
       }
     });
