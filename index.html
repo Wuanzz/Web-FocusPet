@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trạm Sạc FocusPet 🐾</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #1e272e;
+      color: #ffffff;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 20px;
+    }
+    .card {
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(12px);
+      border-radius: 24px;
+      padding: 30px 20px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      width: 100%;
+      max-width: 340px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    }
+    .pet-icon { font-size: 70px; margin-bottom: 15px; }
+    h1 { font-size: 20px; margin-bottom: 8px; color: #2ecc71; }
+    p { font-size: 13px; color: #dcdde1; line-height: 1.5; margin-bottom: 25px; }
+    .status-badge {
+      display: inline-block;
+      padding: 8px 20px;
+      border-radius: 20px;
+      font-weight: bold;
+      font-size: 13px;
+      background: #2ecc71;
+      color: #fff;
+    }
+    .status-badge.warning { background: #e74c3c; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="pet-icon" id="petIcon">😴</div>
+    <h1 id="statusTitle">Đang Trong Trạm Sạc</h1>
+    <p id="statusDesc">Hãy giữ nguyên màn hình này và đặt điện thoại xuống bàn để cùng Pet tập trung nhé!</p>
+    <div class="status-badge" id="statusBadge">ĐANG TẬP TRUNG</div>
+  </div>
+
+  <script>
+    const FIREBASE_DB_URL = "https://focuspet-station-default-rtdb.firebaseio.com";
+    
+    // Lấy Session ID từ URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionId = urlParams.get('session');
+
+    const statusTitle = document.getElementById('statusTitle');
+    const statusDesc = document.getElementById('statusDesc');
+    const statusBadge = document.getElementById('statusBadge');
+    const petIcon = document.getElementById('petIcon');
+
+    async function sendSignal(isDistracted) {
+      if (!sessionId) return;
+      try {
+        await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}.json`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mobileDistracted: isDistracted,
+            updatedAt: Date.now()
+          })
+        });
+      } catch (e) {}
+    }
+
+    // Báo an toàn khi vừa vào trang
+    sendSignal(false);
+
+    // Lắng nghe sự kiện thoát ứng dụng/đổi tab
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        // NGƯỜI DÙNG THOÁT RA LƯỚT APP KHÁC!
+        sendSignal(true);
+        statusTitle.innerText = "⚠️ XAO NHÃNG!";
+        statusTitle.style.color = "#e74c3c";
+        statusDesc.innerText = "Bạn đã rời khỏi Trạm Sạc! Pet trên máy tính đang bị ảnh hưởng!";
+        statusBadge.innerText = "CẢNH BÁO";
+        statusBadge.className = "status-badge warning";
+        petIcon.innerText = "😭";
+      } else {
+        // QUAY LẠI TRẠM SẠC
+        sendSignal(false);
+        statusTitle.innerText = "Đang Trong Trạm Sạc";
+        statusTitle.style.color = "#2ecc71";
+        statusDesc.innerText = "Hãy giữ nguyên màn hình này và đặt điện thoại xuống bàn để cùng Pet tập trung nhé!";
+        statusBadge.innerText = "ĐANG TẬP TRUNG";
+        statusBadge.className = "status-badge";
+        petIcon.innerText = "😴";
+      }
+    });
+  </script>
+</body>
+</html>
