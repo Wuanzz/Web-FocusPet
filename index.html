@@ -163,9 +163,8 @@
     progressCircle.style.strokeDasharray = `${circumference} ${circumference}`;
 
     let wakeLock = null;
-    let isUserBlurAction = false;
 
-    // 1. TÍNH NĂNG GIỮ MÀN HÌNH LUÔN SÁNG (SCREEN WAKE LOCK API)
+    // 1. KÍCH HOẠT GIỮ SÁNG MÀN HÌNH (SCREEN WAKE LOCK)
     async function requestWakeLock() {
       try {
         if ('wakeLock' in navigator) {
@@ -174,7 +173,6 @@
       } catch (err) {}
     }
 
-    // Kích hoạt giữ sáng màn hình ngay khi người dùng chạm hoặc tải trang
     requestWakeLock();
     document.addEventListener('touchstart', requestWakeLock, { once: true });
     document.addEventListener('click', requestWakeLock, { once: true });
@@ -234,6 +232,7 @@
       setProgress(100, "#95a5a6");
     }
 
+    // GỬI TÍN HIỆU LÊN FIREBASE
     async function sendSignal(isDistracted) {
       if (!sessionId || !isDeviceAuthorized) return;
       try {
@@ -321,31 +320,20 @@
       } catch (e) {}
     }, 1500);
 
-    // PHÂN BIỆT RỜI TAB XAO NHÃNG VS TẮT MÀN HÌNH NGUỒN
-    window.addEventListener('blur', () => {
-      isUserBlurAction = true;
-    });
-
-    window.addEventListener('focus', () => {
-      isUserBlurAction = false;
-      requestWakeLock();
-    });
-
+    // XỬ LÝ SỰ KIỆN RỜI TRẠM SẠC (BẤM HOME, CHUYỂN APP, ĐỔI TAB)
     document.addEventListener("visibilitychange", () => {
       if (!isDeviceAuthorized) return;
 
       if (document.hidden) {
-        // Chỉ phạt nếu người dùng thực sự chủ động out tab (Blur action)
-        if (isUserBlurAction) {
-          sendSignal(true);
-          statusTitle.innerText = "⚠️ XAO NHÃNG!";
-          statusTitle.style.color = "#e74c3c";
-          statusDesc.innerText = "Bạn đã rời khỏi Trạm Sạc! Pet trên máy tính đang bị ảnh hưởng!";
-          statusBadge.innerText = "CẢNH BÁO";
-          statusBadge.className = "status-badge warning";
-        }
+        // BẮT BỘC GỬI CẢNH BÁO XAO NHÃNG NGAY TẬP TỨC
+        sendSignal(true);
+        statusTitle.innerText = "⚠️ XAO NHÃNG!";
+        statusTitle.style.color = "#e74c3c";
+        statusDesc.innerText = "Bạn đã rời khỏi Trạm Sạc! Pet trên máy tính đang bị ảnh hưởng!";
+        statusBadge.innerText = "CẢNH BÁO";
+        statusBadge.className = "status-badge warning";
       } else {
-        // Quay lại web -> Đặt lại an toàn
+        // QUAY LẠI TRẠM SẠC -> TRẢ VỀ AN TOÀN
         sendSignal(false);
         statusDesc.innerText = "Màn hình sẽ luôn giữ sáng. Hãy đặt điện thoại xuống bàn để cùng Pet học tập nhé!";
         requestWakeLock();
