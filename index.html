@@ -69,7 +69,7 @@
 
     .progress-ring__circle {
       stroke: #2ecc71;
-      stroke-dasharray: 565.48; /* 2 * PI * r (r=90) */
+      stroke-dasharray: 565.48;
       stroke-dashoffset: 0;
       transition: stroke-dashoffset 0.5s linear, stroke 0.3s ease;
       stroke-linecap: round;
@@ -127,11 +127,12 @@
     .status-badge.warning { background: #e74c3c; box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3); }
     .status-badge.paused { background: #e67e22; box-shadow: 0 4px 12px rgba(230, 126, 34, 0.3); }
     .status-badge.break { background: #3498db; box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3); }
+    .status-badge.locked { background: #95a5a6; box-shadow: 0 4px 12px rgba(149, 165, 166, 0.3); }
   </style>
 </head>
 <body>
 
-  <div class="station-card">
+  <div class="station-card" id="mainCard">
     <!-- 1. THỜI GIAN ĐẾM NGƯỢC PHÍA TRÊN -->
     <div class="timer-header" id="timerDisplay">25:00</div>
 
@@ -169,6 +170,15 @@
     const circumference = 2 * Math.PI * circleRadius;
     progressCircle.style.strokeDasharray = `${circumference} ${circumference}`;
 
+    // TẠO TOKEN ĐỊNH DẠNG DUY NHẤT CHO THIẾT BỊ NÀY
+    let myDeviceToken = localStorage.getItem('focuspet_device_token');
+    if (!myDeviceToken) {
+      myDeviceToken = 'device_' + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('focuspet_device_token', myDeviceToken);
+    }
+
+    let isDeviceAuthorized = false;
+
     function setProgress(percent, color = '#2ecc71') {
       const offset = circumference - (percent / 100 * circumference);
       progressCircle.style.strokeDashoffset = offset;
@@ -181,9 +191,48 @@
       return 'adult';
     }
 
+    // ĐĂNG KÝ VÀ RÀNG BUỘC THIẾT BỊ ĐƠN (DEVICE LOCK)
+    async function claimOrValidateDevice() {
+      if (!sessionId) return false;
+      try {
+        const res = await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}/activeDevice.json`);
+        const activeDevice = await res.json();
+
+        const now = Date.now();
+        // Nếu chưa có thiết bị nào đăng ký hoặc thiết bị cũ đã ngắt kết nối quá 30s
+        if (!activeDevice || !activeDevice.token || activeDevice.token === myDeviceToken || (now - activeDevice.lastPing > 30000)) {
+          // Khóa Session này cho thiết bị hiện tại
+          await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}/activeDevice.json`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: myDeviceToken, lastPing: now })
+          });
+          isDeviceAuthorized = true;
+          return true;
+        } else {
+          // Bị từ chối vì đã có thiết bị khác truy cập
+          isDeviceAuthorized = false;
+          showDeviceLockedScreen();
+          return false;
+        }
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function showDeviceLockedScreen() {
+      statusTitle.innerText = "🔒 THIẾT BỊ BỊ TỪ CHỐI";
+      statusTitle.style.color = "#e74c3c";
+      statusDesc.innerText = "Trạm sạc này đang được sử dụng bởi một điện thoại khác!";
+      statusBadge.innerText = "ĐÃ KHÓA";
+      statusBadge.className = "status-badge locked";
+      petImg.src = "pet/penguin/egg-warning.gif";
+      setProgress(100, "#95a5a6");
+    }
+
     // 1. GỬI TÍN HIỆU CẢNH BÁO KHI RỜI/VÀO LẠI TRẠM SẠC
     async function sendSignal(isDistracted) {
-      if (!sessionId) return;
+      if (!sessionId || !isDeviceAuthorized) return;
       try {
         await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}.json`, {
           method: 'PATCH',
@@ -193,14 +242,29 @@
             updatedAt: Date.now()
           })
         });
+
+        // Ping cập nhật sự sống của thiết bị
+        await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}/activeDevice.json`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lastPing: Date.now() })
+        });
       } catch (e) {}
     }
 
-    sendSignal(false);
+    // Khởi tạo đăng ký thiết bị
+    claimOrValidateDevice().then(authorized => {
+      if (authorized) sendSignal(false);
+    });
 
     // 2. LẤY TRẠNG THÁI VÀ CẬP NHẬT GIAO DIỆN REAL-TIME
     setInterval(async () => {
       if (!sessionId || document.hidden) return;
+
+      // Xung nhịp kiểm tra bản quyền thiết bị
+      const authorized = await claimOrValidateDevice();
+      if (!authorized) return;
+
       try {
         const res = await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}/desktopState.json`);
         const data = await res.json();
@@ -212,16 +276,13 @@
           const secs = secondsLeft % 60;
           timerDisplay.innerText = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 
-          // Cập nhật vòng tròn tiến trình (giả định tổng thời gian từ mốc còn lại)
           const totalDuration = data.mode === 'BREAK' ? 300 : 1500; 
           const progressPercent = Math.min(100, Math.max(0, (secondsLeft / totalDuration) * 100));
 
-          // Xác định đường dẫn ảnh GIF động của Pet
           const petType = data.petType || 'penguin';
           const level = data.level || 1;
           const prefix = getPetStagePrefix(level);
 
-          // Cập nhật trạng thái & màu sắc
           if (!data.isRunning || data.petState === 'PAUSED') {
             setProgress(progressPercent, '#e67e22');
             petImg.src = `pet/${petType}/${prefix}-paused.gif`;
@@ -260,10 +321,12 @@
           }
         }
       } catch (e) {}
-    }, 1000);
+    }, 1500);
 
     // XỬ LÝ SỰ KIỆN RỜI TRẠM SẠC
     document.addEventListener("visibilitychange", () => {
+      if (!isDeviceAuthorized) return;
+
       if (document.hidden) {
         sendSignal(true);
         statusTitle.innerText = "⚠️ XAO NHÃNG!";
