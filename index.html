@@ -28,24 +28,27 @@
       max-width: 340px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.3);
     }
-    .pet-icon { font-size: 70px; margin-bottom: 15px; }
-    h1 { font-size: 20px; margin-bottom: 8px; color: #2ecc71; }
-    p { font-size: 13px; color: #dcdde1; line-height: 1.5; margin-bottom: 25px; }
+    .pet-icon { font-size: 65px; margin-bottom: 10px; }
+    .timer { font-size: 38px; font-weight: bold; color: #f1c40f; margin: 8px 0; font-family: monospace; }
+    h1 { font-size: 18px; margin-bottom: 6px; color: #2ecc71; }
+    p { font-size: 12px; color: #dcdde1; line-height: 1.5; margin-bottom: 20px; }
     .status-badge {
       display: inline-block;
-      padding: 8px 20px;
+      padding: 6px 16px;
       border-radius: 20px;
       font-weight: bold;
-      font-size: 13px;
+      font-size: 12px;
       background: #2ecc71;
       color: #fff;
     }
     .status-badge.warning { background: #e74c3c; }
+    .status-badge.paused { background: #e67e22; }
   </style>
 </head>
 <body>
   <div class="card">
-    <div class="pet-icon" id="petIcon">😴</div>
+    <div class="pet-icon" id="petIcon">🐧</div>
+    <div class="timer" id="timerDisplay">25:00</div>
     <h1 id="statusTitle">Đang Trong Trạm Sạc</h1>
     <p id="statusDesc">Hãy giữ nguyên màn hình này và đặt điện thoại xuống bàn để cùng Pet tập trung nhé!</p>
     <div class="status-badge" id="statusBadge">ĐANG TẬP TRUNG</div>
@@ -62,12 +65,20 @@
     const statusDesc = document.getElementById('statusDesc');
     const statusBadge = document.getElementById('statusBadge');
     const petIcon = document.getElementById('petIcon');
+    const timerDisplay = document.getElementById('timerDisplay');
 
+    const petEmojis = {
+      penguin: '🐧',
+      cat: '🐱',
+      phoenix: '🐦'
+    };
+
+    // 1. GỬI TÍN HIỆU CẢNH BÁO XAO NHÃNG LÊN FIREBASE KHI ĐIỆN THOẠI RỜI TRẠM
     async function sendSignal(isDistracted) {
       if (!sessionId) return;
       try {
         await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}.json`, {
-          method: 'PUT',
+          method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             mobileDistracted: isDistracted,
@@ -77,13 +88,46 @@
       } catch (e) {}
     }
 
-    // Báo an toàn khi vừa vào trang
     sendSignal(false);
 
-    // Lắng nghe sự kiện thoát ứng dụng/đổi tab
+    // 2. ĐỌC ĐỒNG BỘ THỜI GIAN & LÊN CẬP NHẬT GIAO DIỆN MỖI 1 GIÂY
+    setInterval(async () => {
+      if (!sessionId) return;
+      try {
+        const res = await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}/desktopState.json`);
+        const data = await res.json();
+
+        if (data) {
+          // Hiển thị loài Pet
+          petIcon.innerText = petEmojis[data.petType] || '🐧';
+
+          // Đồng bộ đếm ngược Pomodoro
+          const mins = Math.floor((data.timeLeft || 0) / 60);
+          const secs = (data.timeLeft || 0) % 60;
+          timerDisplay.innerText = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
+          // Đồng bộ trạng thái
+          if (!data.isRunning) {
+            statusBadge.innerText = "TẠM DỪNG";
+            statusBadge.className = "status-badge paused";
+          } else if (data.mode === 'BREAK') {
+            statusBadge.innerText = "GIỜ NGHỈ NGƠI";
+            statusBadge.className = "status-badge";
+            statusTitle.innerText = "Thư giãn thôi~";
+          } else {
+            if (!document.hidden) {
+              statusBadge.innerText = "ĐANG TẬP TRUNG";
+              statusBadge.className = "status-badge";
+              statusTitle.innerText = "Đang Trong Trạm Sạc";
+            }
+          }
+        }
+      } catch (e) {}
+    }, 1000);
+
+    // LẮNG NGHE SỰ KIỆN THOÁT ỨNG DỤNG/ĐỔI TAB TRÊN MOBILE
     document.addEventListener("visibilitychange", () => {
       if (document.hidden) {
-        // NGƯỜI DÙNG THOÁT RA LƯỚT APP KHÁC!
         sendSignal(true);
         statusTitle.innerText = "⚠️ XAO NHÃNG!";
         statusTitle.style.color = "#e74c3c";
@@ -92,14 +136,9 @@
         statusBadge.className = "status-badge warning";
         petIcon.innerText = "😭";
       } else {
-        // QUAY LẠI TRẠM SẠC
         sendSignal(false);
-        statusTitle.innerText = "Đang Trong Trạm Sạc";
         statusTitle.style.color = "#2ecc71";
         statusDesc.innerText = "Hãy giữ nguyên màn hình này và đặt điện thoại xuống bàn để cùng Pet tập trung nhé!";
-        statusBadge.innerText = "ĐANG TẬP TRUNG";
-        statusBadge.className = "status-badge";
-        petIcon.innerText = "😴";
       }
     });
   </script>
