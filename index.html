@@ -27,10 +27,11 @@
       width: 100%;
       max-width: 340px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      transition: all 0.3s ease;
     }
     .pet-icon { font-size: 65px; margin-bottom: 10px; }
     .timer { font-size: 38px; font-weight: bold; color: #f1c40f; margin: 8px 0; font-family: monospace; }
-    h1 { font-size: 18px; margin-bottom: 6px; color: #2ecc71; }
+    h1 { font-size: 18px; margin-bottom: 6px; color: #2ecc71; transition: color 0.3s ease; }
     p { font-size: 12px; color: #dcdde1; line-height: 1.5; margin-bottom: 20px; }
     .status-badge {
       display: inline-block;
@@ -40,9 +41,11 @@
       font-size: 12px;
       background: #2ecc71;
       color: #fff;
+      transition: background 0.3s ease;
     }
     .status-badge.warning { background: #e74c3c; }
     .status-badge.paused { background: #e67e22; }
+    .status-badge.break { background: #3498db; }
   </style>
 </head>
 <body>
@@ -73,7 +76,7 @@
       phoenix: '🐦'
     };
 
-    // 1. GỬI TÍN HIỆU CẢNH BÁO XAO NHÃNG LÊN FIREBASE KHI ĐIỆN THOẠI RỜI TRẠM
+    // 1. GỬI TÍN HIỆU CẢNH BÁO LÊN FIREBASE KHI RỜI / QUAY LẠI TRẠM SẠC
     async function sendSignal(isDistracted) {
       if (!sessionId) return;
       try {
@@ -88,44 +91,62 @@
       } catch (e) {}
     }
 
+    // Báo an toàn khi vừa tải trang
     sendSignal(false);
 
-    // 2. ĐỌC ĐỒNG BỘ THỜI GIAN & LÊN CẬP NHẬT GIAO DIỆN MỖI 1 GIÂY
+    // 2. ĐỌC ĐỒNG BỘ TẤT CẢ TRẠNG THÁI TỪ EXTENSION VỀ MOBILE MỖI 1 GIÂY
     setInterval(async () => {
-      if (!sessionId) return;
+      if (!sessionId || document.hidden) return;
       try {
         const res = await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}/desktopState.json`);
         const data = await res.json();
 
         if (data) {
-          // Hiển thị loài Pet
-          petIcon.innerText = petEmojis[data.petType] || '🐧';
-
           // Đồng bộ đếm ngược Pomodoro
           const mins = Math.floor((data.timeLeft || 0) / 60);
           const secs = (data.timeLeft || 0) % 60;
           timerDisplay.innerText = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 
-          // Đồng bộ trạng thái
-          if (!data.isRunning) {
+          const defaultEmoji = petEmojis[data.petType] || '🐧';
+
+          // Đồng bộ ĐỦ các trạng thái thực tế từ Extension
+          if (!data.isRunning || data.petState === 'PAUSED') {
             statusBadge.innerText = "TẠM DỪNG";
             statusBadge.className = "status-badge paused";
-          } else if (data.mode === 'BREAK') {
+            statusTitle.innerText = "Tạm dừng tập trung";
+            statusTitle.style.color = "#e67e22";
+            petIcon.innerText = "😴";
+          } else if (data.mode === 'BREAK' || data.petState === 'BREAK') {
             statusBadge.innerText = "GIỜ NGHỈ NGƠI";
-            statusBadge.className = "status-badge";
+            statusBadge.className = "status-badge break";
             statusTitle.innerText = "Thư giãn thôi~";
+            statusTitle.style.color = "#3498db";
+            petIcon.innerText = "☕";
+          } else if (data.petState === 'WARNING') {
+            statusBadge.innerText = "CẢNH BÁO XAO NHÃNG";
+            statusBadge.className = "status-badge warning";
+            statusTitle.innerText = "Mau quay lại học bài!";
+            statusTitle.style.color = "#e74c3c";
+            petIcon.innerText = "⚠️";
+          } else if (data.petState === 'DISTRACTED') {
+            statusBadge.innerText = "BỊ TRỪ EXP!";
+            statusBadge.className = "status-badge warning";
+            statusTitle.innerText = "Đã bị trừ điểm!";
+            statusTitle.style.color = "#e74c3c";
+            petIcon.innerText = "😭";
           } else {
-            if (!document.hidden) {
-              statusBadge.innerText = "ĐANG TẬP TRUNG";
-              statusBadge.className = "status-badge";
-              statusTitle.innerText = "Đang Trong Trạm Sạc";
-            }
+            // Trạng thái FOCUS chuẩn
+            statusBadge.innerText = "ĐANG TẬP TRUNG";
+            statusBadge.className = "status-badge";
+            statusTitle.innerText = "Đang Trong Trạm Sạc";
+            statusTitle.style.color = "#2ecc71";
+            petIcon.innerText = defaultEmoji;
           }
         }
       } catch (e) {}
     }, 1000);
 
-    // LẮNG NGHE SỰ KIỆN THOÁT ỨNG DỤNG/ĐỔI TAB TRÊN MOBILE
+    // LẮNG NGHE SỰ KIỆN THOÁT ỨNG DỤNG / QUAY LẠI TRẠM SẠC
     document.addEventListener("visibilitychange", () => {
       if (document.hidden) {
         sendSignal(true);
@@ -138,7 +159,10 @@
       } else {
         sendSignal(false);
         statusTitle.style.color = "#2ecc71";
+        statusTitle.innerText = "Đang Trong Trạm Sạc";
         statusDesc.innerText = "Hãy giữ nguyên màn hình này và đặt điện thoại xuống bàn để cùng Pet tập trung nhé!";
+        statusBadge.innerText = "ĐANG TẬP TRUNG";
+        statusBadge.className = "status-badge";
       }
     });
   </script>
