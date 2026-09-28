@@ -36,7 +36,6 @@
       position: relative;
     }
 
-    /* ĐỒNG HỒ ĐẾM NGƯỢC PHÍA TRÊN */
     .timer-header {
       font-size: 38px;
       font-weight: 800;
@@ -47,7 +46,6 @@
       text-shadow: 0 2px 10px rgba(241, 196, 15, 0.3);
     }
 
-    /* KHUNG VÒNG TRÒN TRUNG TÂM */
     .circle-container {
       position: relative;
       width: 200px;
@@ -75,7 +73,6 @@
       stroke-linecap: round;
     }
 
-    /* PET ANIMATION Ở GIỮA VÒNG TRÒN */
     .pet-wrapper {
       position: absolute;
       width: 120px;
@@ -93,7 +90,6 @@
       transition: all 0.3s ease;
     }
 
-    /* TIÊU ĐỀ VÀ BADGE TRẠNG THÁI PHÍA DƯỚI */
     .status-title {
       font-size: 18px;
       font-weight: 700;
@@ -123,7 +119,6 @@
       transition: all 0.3s ease;
     }
 
-    /* ĐỔI MÀU TRẠNG THÁI */
     .status-badge.warning { background: #e74c3c; box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3); }
     .status-badge.paused { background: #e67e22; box-shadow: 0 4px 12px rgba(230, 126, 34, 0.3); }
     .status-badge.break { background: #3498db; box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3); }
@@ -133,10 +128,8 @@
 <body>
 
   <div class="station-card" id="mainCard">
-    <!-- 1. THỜI GIAN ĐẾM NGƯỢC PHÍA TRÊN -->
     <div class="timer-header" id="timerDisplay">25:00</div>
 
-    <!-- 2. VÒNG TRÒN TIẾN TRÌNH VÀ PET GIF Ở GIỮA -->
     <div class="circle-container">
       <svg class="progress-ring" width="200" height="200">
         <circle class="progress-ring__circle-bg" stroke-width="8" fill="transparent" r="90" cx="100" cy="100"/>
@@ -147,9 +140,8 @@
       </div>
     </div>
 
-    <!-- 3. TRẠNG THÁI PHÍA DƯỚI -->
     <div class="status-title" id="statusTitle">Đang Trong Trạm Sạc</div>
-    <div class="status-desc" id="statusDesc">Đặt điện thoại xuống bàn để cùng Pet tập trung học bài nhé!</div>
+    <div class="status-desc" id="statusDesc">Màn hình sẽ luôn giữ sáng. Hãy đặt điện thoại xuống bàn để cùng Pet học tập nhé!</div>
     <div class="status-badge" id="statusBadge">ĐANG TẬP TRUNG</div>
   </div>
 
@@ -170,7 +162,23 @@
     const circumference = 2 * Math.PI * circleRadius;
     progressCircle.style.strokeDasharray = `${circumference} ${circumference}`;
 
-    // TẠO TOKEN ĐỊNH DẠNG DUY NHẤT CHO THIẾT BỊ NÀY
+    let wakeLock = null;
+    let isUserBlurAction = false;
+
+    // 1. TÍNH NĂNG GIỮ MÀN HÌNH LUÔN SÁNG (SCREEN WAKE LOCK API)
+    async function requestWakeLock() {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await navigator.wakeLock.request('screen');
+        }
+      } catch (err) {}
+    }
+
+    // Kích hoạt giữ sáng màn hình ngay khi người dùng chạm hoặc tải trang
+    requestWakeLock();
+    document.addEventListener('touchstart', requestWakeLock, { once: true });
+    document.addEventListener('click', requestWakeLock, { once: true });
+
     let myDeviceToken = localStorage.getItem('focuspet_device_token');
     if (!myDeviceToken) {
       myDeviceToken = 'device_' + Math.random().toString(36).substr(2, 9);
@@ -191,7 +199,6 @@
       return 'adult';
     }
 
-    // ĐĂNG KÝ VÀ RÀNG BUỘC THIẾT BỊ ĐƠN (DEVICE LOCK)
     async function claimOrValidateDevice() {
       if (!sessionId) return false;
       try {
@@ -199,9 +206,7 @@
         const activeDevice = await res.json();
 
         const now = Date.now();
-        // Nếu chưa có thiết bị nào đăng ký hoặc thiết bị cũ đã ngắt kết nối quá 30s
         if (!activeDevice || !activeDevice.token || activeDevice.token === myDeviceToken || (now - activeDevice.lastPing > 30000)) {
-          // Khóa Session này cho thiết bị hiện tại
           await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}/activeDevice.json`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -210,7 +215,6 @@
           isDeviceAuthorized = true;
           return true;
         } else {
-          // Bị từ chối vì đã có thiết bị khác truy cập
           isDeviceAuthorized = false;
           showDeviceLockedScreen();
           return false;
@@ -230,7 +234,6 @@
       setProgress(100, "#95a5a6");
     }
 
-    // 1. GỬI TÍN HIỆU CẢNH BÁO KHI RỜI/VÀO LẠI TRẠM SẠC
     async function sendSignal(isDistracted) {
       if (!sessionId || !isDeviceAuthorized) return;
       try {
@@ -243,7 +246,6 @@
           })
         });
 
-        // Ping cập nhật sự sống của thiết bị
         await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}/activeDevice.json`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -252,16 +254,13 @@
       } catch (e) {}
     }
 
-    // Khởi tạo đăng ký thiết bị
     claimOrValidateDevice().then(authorized => {
       if (authorized) sendSignal(false);
     });
 
-    // 2. LẤY TRẠNG THÁI VÀ CẬP NHẬT GIAO DIỆN REAL-TIME
     setInterval(async () => {
       if (!sessionId || document.hidden) return;
 
-      // Xung nhịp kiểm tra bản quyền thiết bị
       const authorized = await claimOrValidateDevice();
       if (!authorized) return;
 
@@ -270,7 +269,6 @@
         const data = await res.json();
 
         if (data) {
-          // Cập nhật đồng hồ đếm ngược
           const secondsLeft = data.timeLeft || 0;
           const mins = Math.floor(secondsLeft / 60);
           const secs = secondsLeft % 60;
@@ -323,20 +321,34 @@
       } catch (e) {}
     }, 1500);
 
-    // XỬ LÝ SỰ KIỆN RỜI TRẠM SẠC
+    // PHÂN BIỆT RỜI TAB XAO NHÃNG VS TẮT MÀN HÌNH NGUỒN
+    window.addEventListener('blur', () => {
+      isUserBlurAction = true;
+    });
+
+    window.addEventListener('focus', () => {
+      isUserBlurAction = false;
+      requestWakeLock();
+    });
+
     document.addEventListener("visibilitychange", () => {
       if (!isDeviceAuthorized) return;
 
       if (document.hidden) {
-        sendSignal(true);
-        statusTitle.innerText = "⚠️ XAO NHÃNG!";
-        statusTitle.style.color = "#e74c3c";
-        statusDesc.innerText = "Bạn đã rời khỏi Trạm Sạc! Pet trên máy tính đang bị ảnh hưởng!";
-        statusBadge.innerText = "CẢNH BÁO";
-        statusBadge.className = "status-badge warning";
+        // Chỉ phạt nếu người dùng thực sự chủ động out tab (Blur action)
+        if (isUserBlurAction) {
+          sendSignal(true);
+          statusTitle.innerText = "⚠️ XAO NHÃNG!";
+          statusTitle.style.color = "#e74c3c";
+          statusDesc.innerText = "Bạn đã rời khỏi Trạm Sạc! Pet trên máy tính đang bị ảnh hưởng!";
+          statusBadge.innerText = "CẢNH BÁO";
+          statusBadge.className = "status-badge warning";
+        }
       } else {
+        // Quay lại web -> Đặt lại an toàn
         sendSignal(false);
-        statusDesc.innerText = "Đặt điện thoại xuống bàn để cùng Pet tập trung học bài nhé!";
+        statusDesc.innerText = "Màn hình sẽ luôn giữ sáng. Hãy đặt điện thoại xuống bàn để cùng Pet học tập nhé!";
+        requestWakeLock();
       }
     });
   </script>
